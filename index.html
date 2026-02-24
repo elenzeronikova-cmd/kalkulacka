@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kalkulačka: Cesta k milionům s grafem</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; color: #333; }
-        .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
+        .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 800px; }
         h2 { color: #2c3e50; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
         .input-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; }
@@ -16,7 +17,7 @@
         .highlight { font-weight: bold; color: #2e7d32; }
         .inflation { color: #c62828; font-size: 0.9em; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 10px; }
         .footer { font-size: 0.8em; color: #777; margin-top: 15px; text-align: center; font-style: italic; }
-        .chart-container { margin-top: 30px; }
+        .chart-container { margin-top: 30px; position: relative; height: 400px; }
     </style>
 </head>
 <body>
@@ -26,23 +27,22 @@
     
     <div class="input-group">
         <label>Počáteční měsíční vklad (Kč):</label>
-        <input type="number" id="startVklad" value="500">
+        <input type="number" id="startVklad" value="500" oninput="prepocitej()">
     </div>
     <div class="input-group">
         <label>Roční výnos S&P 500 (%):</label>
-        <input type="number" id="vynos" value="7" step="0.1">
+        <input type="number" id="vynos" value="7" step="0.1" oninput="prepocitej()">
     </div>
     <div class="input-group">
         <label>Roční inflace (%):</label>
-        <input type="number" id="inflace" value="3.8" step="0.1">
+        <input type="number" id="inflace" value="3.8" step="0.1" oninput="prepocitej()">
     </div>
     <div class="input-group">
         <label>Zvýšení vkladu každé 3 roky o (Kč):</label>
-        <input type="number" id="navyseni" value="100">
+        <input type="number" id="navyseni" value="100" oninput="prepocitej()">
     </div>
 
-    <div class="stats" id="results">
-        </div>
+    <div class="stats" id="results"></div>
 
     <div class="footer">
         Výpočet počítá s měsíčním připisováním úroků po dobu 50 let.
@@ -54,13 +54,13 @@
 </div>
 
 <script>
-let myChart; // Proměnná pro instanci grafu
+let myChart;
 
 function prepocitej() {
-    const startVklad = parseFloat(document.getElementById('startVklad').value);
-    const r = parseFloat(document.getElementById('vynos').value) / 100 / 12; // Měsíční úrok
-    const inflaceR = parseFloat(document.getElementById('inflace').value) / 100 / 12; // Měsíční inflace
-    const navyseni = parseFloat(document.getElementById('navyseni').value);
+    const startVklad = parseFloat(document.getElementById('startVklad').value) || 0;
+    const r = (parseFloat(document.getElementById('vynos').value) || 0) / 100 / 12;
+    const inflaceR = (parseFloat(document.getElementById('inflace').value) || 0) / 100 / 12;
+    const navyseni = parseFloat(document.getElementById('navyseni').value) || 0;
     
     let totalNominal = 0;
     let totalReal = 0;
@@ -72,20 +72,16 @@ function prepocitej() {
     const dataVlozene = [];
     const dataReal = [];
 
-    for (let mesic = 1; mesic <= 600; mesic++) { // 50 let * 12 měsíců
-        if (mesic > 1 && (mesic - 1) % 36 === 0) { // Každé 3 roky (36 měsíců)
+    for (let mesic = 1; mesic <= 600; mesic++) {
+        if (mesic > 1 && (mesic - 1) % 36 === 0) {
             aktualniVklad += navyseni;
         }
 
         celkemVlozeno += aktualniVklad;
-        
-        // Nominální hodnota
         totalNominal = (totalNominal + aktualniVklad) * (1 + r);
-        
-        // Reálná hodnota
+        // Reálná hodnota využívá Fisherovu rovnici zjednodušeně přes (r - inflace)
         totalReal = (totalReal + aktualniVklad) * (1 + (r - inflaceR));
 
-        // Ukládání dat pro graf (každý rok)
         if (mesic % 12 === 0) {
             const rok = Math.floor(mesic / 12);
             labels.push(`Rok ${rok}`);
@@ -107,51 +103,76 @@ function prepocitej() {
         </div>
     `;
 
-    // Aktualizace nebo vytvoření grafu
     const ctx = document.getElementById('investicniGraf').getContext('2d');
     if (myChart) {
-        myChart.destroy(); // Zničí předchozí instanci grafu, aby se mohl vytvořit nový
+        myChart.destroy();
     }
+    
     myChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: 'Celková hodnota (nominální)',
+                    label: 'Nominální hodnota',
                     data: dataNominal,
-                    borderColor: 'rgb(46, 125, 50)',
-                    backgroundColor: 'rgba(46, 125, 50, 0.2)',
+                    borderColor: '#2e7d32',
+                    backgroundColor: 'rgba(46, 125, 50, 0.1)',
                     fill: true,
-                    tension: 0.3
+                    tension: 0.1,
+                    pointRadius: 0
                 },
                 {
-                    label: 'Tvé vklady',
-                    data: dataVlozene,
-                    borderColor: 'rgb(66, 139, 202)',
-                    backgroundColor: 'rgba(66, 139, 202, 0.2)',
-                    fill: false,
-                    tension: 0.3
-                },
-                {
-                    label: 'Reálná hodnota (očištěno o inflaci)',
+                    label: 'Reálná hodnota',
                     data: dataReal,
-                    borderColor: 'rgb(229, 57, 53)',
-                    backgroundColor: 'rgba(229, 57, 53, 0.2)',
+                    borderColor: '#c62828',
+                    borderDash: [5, 5],
                     fill: false,
-                    tension: 0.3,
-                    borderDash: [5, 5] // Přerušovaná čára pro reálnou hodnotu
+                    tension: 0.1,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Vložené prostředky',
+                    data: dataVlozene,
+                    borderColor: '#1976d2',
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 0
                 }
             ]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                title: {
-                    display: true,
-                    text: 'Vývoj hodnoty investice v čase'
+                legend: { position: 'bottom' },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.y.toLocaleString('cs-CZ') + ' Kč';
+                        }
+                    }
                 }
             },
             scales: {
                 y: {
-                    beginAtZero
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('cs-CZ') + ' Kč';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Spustit výpočet hned po načtení
+window.onload = prepocitej;
+</script>
+
+</body>
+</html>
